@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Companion</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Nav -->
+    <div>
+      <button onclick="location.href='index.html'">Journal</button>
+      <button onclick="location.href='therapist.html'">AI Companion</button>
+      <button onclick="location.href='memory.html'">Saved Memories</button>
+    </div>
+
+    <h1>🧠 AI Companion</h1>
+
+    <!-- Simple settings (no extra CSS) -->
+    <div>
+      <select id="aiMode">
+        <option value="demo">Demo (offline)</option>
+        <option value="proxy">Secure (via Proxy)</option>
+      </select>
+      <input id="proxyUrl" type="url" placeholder="https://your-worker.workers.dev/therapist" style="margin-top:8px; border:none; border-radius:12px; padding:10px; width:100%; background:rgba(255,255,255,0.3); color:white;">
+      <button onclick="saveAiSettings()">Save Settings</button>
+    </div>
+
+    <!-- Chat log (reuses your #entries and .entry styles) -->
+    <div id="entries"></div>
+
+    <textarea id="aiInput" placeholder="Type what’s on your mind..."></textarea>
+    <div>
+      <button onclick="sendToAi()">Send</button>
+      <button onclick="clearChat()">Clear Chat</button>
+    </div>
+    <small>Not medical advice. If you're in crisis, contact local emergency services or a crisis hotline.</small>
+  </div>
+
+  <script>
+    const AI_SETTINGS_KEY = "ai_settings_v1";
+    function getSettings(){ try{return JSON.parse(localStorage.getItem(AI_SETTINGS_KEY)||"{}");}catch{return{};} }
+    function saveAiSettings(){
+      const mode = document.getElementById("aiMode").value;
+      const proxyUrl = document.getElementById("proxyUrl").value.trim();
+      localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify({mode, proxyUrl}));
+      alert("Saved.");
+    }
+    (function hydrate(){
+      const s = getSettings();
+      document.getElementById("aiMode").value = s.mode || "demo";
+      document.getElementById("proxyUrl").value = s.proxyUrl || "";
+    })();
+
+    const box = document.getElementById("entries");
+    const input = document.getElementById("aiInput");
+
+    function add(role, text){
+      const div = document.createElement("div");
+      div.className = "entry";
+      div.innerHTML = `<strong>${role === "user" ? "You" : "AI"}</strong><br>${escapeHtml(text).replace(/\n/g,"<br>")}`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+    function clearChat(){ box.innerHTML = ""; }
+    function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+    async function sendToAi(){
+      const msg = input.value.trim();
+      if (!msg) return;
+      input.value = "";
+      add("user", msg);
+
+      const s = getSettings();
+      if ((s.mode || "demo") === "demo"){
+        add("ai", demoReply());
+        return;
+      }
+      const url = (s.proxyUrl||"").trim();
+      if (!url){ add("ai","Add your Proxy URL and press Save Settings."); return; }
+
+      add("ai", "…thinking…");
+      try{
+        const res = await fetch(url, {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ message: msg })
+        });
+        if (!res.ok) throw new Error("Proxy error "+res.status);
+        const data = await res.json();
+        // replace last message's text
+        box.lastElementChild.innerHTML = `<strong>AI</strong><br>${escapeHtml(data.reply || "(no response)")}`;
+        box.scrollTop = box.scrollHeight;
+      }catch(e){
+        box.lastElementChild.innerHTML = `<strong>AI</strong><br>Couldn’t reach proxy: ${escapeHtml(e.message)}`;
+      }
+    }
+
+    function demoReply(){
+      const a=["Thanks for sharing that.","I hear you—this sounds heavy.","Appreciate you putting this into words."];
+      const b=["Try naming the feeling in one word.","What’s one small step you can take in 24h?","On a 1–10 scale, how intense is this now?"];
+      const c=["I’m here if you want to unpack it.","We can break this down together.","You’re not alone in this."];
+      const pick = x=>x[Math.floor(Math.random()*x.length)];
+      return `${pick(a)}\n\n${pick(b)}\n\n${pick(c)}`;
+    }
+  </script>
+</body>
+</html>
