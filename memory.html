@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Saved Memories</title>
+  <link rel="stylesheet" href="My%20Journal.css">
+</head>
+<body>
+  <div class="container">
+    <h1>🗂️ Saved Memories</h1>
+
+    <div class="btn-row">
+      <button class="ghost" onclick="exportMemories()">Export Memories (.json)</button>
+      <button class="clear-btn" onclick="clearMemories()">Clear Memories</button>
+      <a class="link" href="index.html">← Back to Journal</a>
+    </div>
+
+    <div id="memoriesContainer"></div>
+  </div>
+
+  <script>
+    function loadMemories(){
+      let entries = JSON.parse(localStorage.getItem("memoryEntries")) || [];
+      const c = document.getElementById("memoriesContainer");
+      c.innerHTML = "";
+      entries.forEach((e,i)=>{
+        const div = document.createElement("div");
+        div.className = "entry";
+        div.innerHTML = `
+          <p>${escapeHtml(e.text).replace(/\n/g,'<br>')}</p>
+          <div class="entry-meta">
+            <span>${e.timestamp}</span>
+            <button class="mini danger" onclick="deleteMemory(${i})">🗑️</button>
+          </div>`;
+        c.appendChild(div);
+      });
+      if (!entries.length){
+        c.innerHTML = `<p class="muted">No memories yet. Save some from the Journal page.</p>`;
+      }
+    }
+
+    function deleteMemory(i){
+      let entries = JSON.parse(localStorage.getItem("memoryEntries")) || [];
+      entries.splice(i,1);
+      localStorage.setItem("memoryEntries", JSON.stringify(entries));
+      loadMemories();
+    }
+
+    function clearMemories(){
+      if (!confirm("Clear ALL saved memories?")) return;
+      localStorage.removeItem("memoryEntries");
+      loadMemories();
+    }
+
+    function exportMemories(){
+      const data = localStorage.getItem("memoryEntries") || "[]";
+      const blob = new Blob([data], {type:"application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "journal-memories.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+    document.addEventListener("DOMContentLoaded", loadMemories);
+  </script>
+</body>
+</html>
