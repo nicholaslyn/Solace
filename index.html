@@ -4,241 +4,86 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Personal Journal</title>
-  <link rel="stylesheet" href="My%20Journal.css">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
+    <!-- Nav (uses your button style) -->
+    <div>
+      <button onclick="location.href='index.html'">Journal</button>
+      <button onclick="location.href='therapist.html'">AI Companion</button>
+      <button onclick="location.href='memory.html'">Saved Memories</button>
+    </div>
+
     <h1>🌟 Daily Journal 🌟</h1>
 
     <textarea id="journalEntry" placeholder="Write your thoughts here..."></textarea>
 
-    <div class="btn-row">
+    <div>
       <button onclick="saveEntry()">Save Entry</button>
       <button onclick="saveToMemory()">Save to Memory</button>
-      <button class="clear-btn" onclick="clearEntries()">Clear Entries</button>
-      <button class="ghost" onclick="exportEntries()">Export Entries (.json)</button>
+      <button onclick="clearEntries()">Clear Entries</button>
+      <button onclick="exportEntries()">Export (.json)</button>
     </div>
 
     <h2>📖 Past Entries</h2>
-    <div id="entriesContainer"></div>
-
-    <p class="links">
-      <a href="memory.html">View Saved Memories</a>
-    </p>
-
-    <hr/>
-
-    <!-- AI Therapist Panel -->
-    <section class="ai-panel">
-      <h2>🧠 Talk It Out (AI Companion)</h2>
-
-      <!-- Connection settings -->
-      <details class="ai-settings">
-        <summary>Connection Settings</summary>
-        <div class="settings-grid">
-          <label>
-            <span>Mode</span>
-            <select id="aiMode">
-              <option value="demo">Demo (offline, no key)</option>
-              <option value="proxy">Secure (via Proxy)</option>
-            </select>
-          </label>
-          <label>
-            <span>Proxy URL (for Secure mode)</span>
-            <input id="proxyUrl" type="url" placeholder="https://your-worker.workers.dev/therapist">
-          </label>
-        </div>
-        <p class="muted">
-          <strong>Demo</strong> gives safe, templated support (no internet).  
-          <strong>Secure</strong> calls your proxy which talks to ChatGPT (key stays secret). See README for the tiny proxy code.
-        </p>
-        <button class="ghost" onclick="saveAiSettings()">Save AI Settings</button>
-      </details>
-
-      <!-- Chat UI -->
-      <div class="chat-box" id="chatBox"></div>
-
-      <div class="chat-input-row">
-        <textarea id="aiInput" rows="3" placeholder="Type what’s on your mind..."></textarea>
-        <div class="chat-actions">
-          <button onclick="sendToAi()">Send</button>
-          <button class="ghost" onclick="clearChat()">Clear Chat</button>
-        </div>
-      </div>
-
-      <small class="muted">
-        Not a substitute for professional care. If you’re in crisis, contact local emergency services or a crisis hotline.
-      </small>
-    </section>
+    <div id="entries"></div>
   </div>
 
   <script>
-    /* ------------------ Journal (same design & behavior) ------------------ */
-    function saveEntry() {
-      let entryText = document.getElementById("journalEntry").value;
-      if (entryText.trim() === "") return;
+    function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
-      let date = new Date().toLocaleString();
-      let entry = { text: entryText, timestamp: date };
-      let entries = JSON.parse(localStorage.getItem("journalEntries")) || [];
-      entries.unshift(entry);
-      localStorage.setItem("journalEntries", JSON.stringify(entries));
+    function loadEntries(){
+      const list = JSON.parse(localStorage.getItem("journalEntries")||"[]");
+      const c = document.getElementById("entries");
+      c.innerHTML = "";
+      list.forEach((e,i)=>{
+        const div = document.createElement("div");
+        div.className = "entry";
+        div.innerHTML = `<p>${escapeHtml(e.text).replace(/\n/g,"<br>")}</p>
+                         <small>${e.timestamp}</small>
+                         <div><button onclick="delEntry(${i})">🗑️ Delete</button></div>`;
+        c.appendChild(div);
+      });
+      if (!list.length) c.innerHTML = `<div class="entry"><em>No entries yet.</em></div>`;
+    }
+    function saveEntry(){
+      const t = document.getElementById("journalEntry").value;
+      if (!t.trim()) return;
+      const list = JSON.parse(localStorage.getItem("journalEntries")||"[]");
+      list.unshift({ text:t, timestamp:new Date().toLocaleString() });
+      localStorage.setItem("journalEntries", JSON.stringify(list));
       document.getElementById("journalEntry").value = "";
       loadEntries();
     }
-
-    function saveToMemory() {
-      let entries = JSON.parse(localStorage.getItem("journalEntries")) || [];
-      let memoryEntries = JSON.parse(localStorage.getItem("memoryEntries")) || [];
-      memoryEntries = entries.concat(memoryEntries); // keep most recent first
-      localStorage.setItem("memoryEntries", JSON.stringify(memoryEntries));
+    function delEntry(i){
+      const list = JSON.parse(localStorage.getItem("journalEntries")||"[]");
+      list.splice(i,1);
+      localStorage.setItem("journalEntries", JSON.stringify(list));
+      loadEntries();
+    }
+    function saveToMemory(){
+      const cur = JSON.parse(localStorage.getItem("journalEntries")||"[]");
+      const mem = JSON.parse(localStorage.getItem("memoryEntries")||"[]");
+      localStorage.setItem("memoryEntries", JSON.stringify(cur.concat(mem)));
       localStorage.removeItem("journalEntries");
       loadEntries();
     }
-
-    function loadEntries() {
-      let entries = JSON.parse(localStorage.getItem("journalEntries")) || [];
-      let entriesContainer = document.getElementById("entriesContainer");
-      entriesContainer.innerHTML = "";
-      entries.forEach((entry, index) => {
-        let div = document.createElement("div");
-        div.className = "entry";
-        div.innerHTML = `
-          <p>${escapeHtml(entry.text).replace(/\n/g,'<br>')}</p>
-          <div class="entry-meta">
-            <span>${entry.timestamp}</span>
-            <button class="mini danger" onclick="deleteEntry(${index})">🗑️</button>
-          </div>`;
-        entriesContainer.appendChild(div);
-      });
-    }
-
-    function deleteEntry(index) {
-      let entries = JSON.parse(localStorage.getItem("journalEntries")) || [];
-      entries.splice(index, 1);
-      localStorage.setItem("journalEntries", JSON.stringify(entries));
-      loadEntries();
-    }
-
-    function clearEntries() {
-      if (!confirm("Clear all current journal entries?")) return;
+    function clearEntries(){
+      if (!confirm("Clear ALL current entries?")) return;
       localStorage.removeItem("journalEntries");
       loadEntries();
     }
-
-    function exportEntries() {
-      const entries = localStorage.getItem("journalEntries") || "[]";
-      const blob = new Blob([entries], { type: "application/json" });
+    function exportEntries(){
+      const data = localStorage.getItem("journalEntries") || "[]";
+      const blob = new Blob([data], {type:"application/json"});
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "journal-entries.json";
-      a.click();
-      URL.revokeObjectURL(a.href);
+      a.click(); URL.revokeObjectURL(a.href);
     }
-
-    function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
-
     document.addEventListener("DOMContentLoaded", loadEntries);
-
-    /* ------------------ AI Companion ------------------ */
-
-    // settings
-    const AI_SETTINGS_KEY = "ai_settings_v1";
-    function getAiSettings(){
-      try{ return JSON.parse(localStorage.getItem(AI_SETTINGS_KEY) || "{}"); }catch{ return {}; }
-    }
-    function saveAiSettings(){
-      const mode = document.getElementById("aiMode").value;
-      const proxyUrl = document.getElementById("proxyUrl").value.trim();
-      localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify({ mode, proxyUrl }));
-      alert("AI settings saved.");
-    }
-    (function hydrateSettings(){
-      const s = getAiSettings();
-      document.getElementById("aiMode").value = s.mode || "demo";
-      document.getElementById("proxyUrl").value = s.proxyUrl || "";
-    })();
-
-    // chat state
-    const chatBox = document.getElementById("chatBox");
-    const aiInput = document.getElementById("aiInput");
-
-    function addMsg(role, text){
-      const wrap = document.createElement("div");
-      wrap.className = "msg " + role;
-      wrap.innerHTML = `<div class="bubble">${escapeHtml(text).replace(/\n/g,"<br>")}</div>`;
-      chatBox.appendChild(wrap);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    function clearChat(){
-      chatBox.innerHTML = "";
-    }
-
-    async function sendToAi(){
-      const text = aiInput.value.trim();
-      if (!text) return;
-      aiInput.value = "";
-      addMsg("user", text);
-
-      const settings = getAiSettings();
-      if ((settings.mode || "demo") === "demo"){
-        // Offline supportive response
-        const reply = demoSupportReply(text);
-        await sleep(200); // tiny pause for UX
-        addMsg("ai", reply);
-        return;
-      }
-
-      const proxyUrl = (settings.proxyUrl || "").trim();
-      if (!proxyUrl){
-        addMsg("ai", "To use Secure mode, add your Proxy URL in Connection Settings (see README).");
-        return;
-      }
-
-      addMsg("ai", "…thinking…");
-
-      try{
-        const res = await fetch(proxyUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text })
-        });
-        if (!res.ok){
-          throw new Error("Proxy error: " + res.status);
-        }
-        const data = await res.json(); // { reply: "..." }
-        // replace the last "…thinking…" bubble
-        const last = chatBox.querySelector(".msg.ai:last-child .bubble");
-        if (last) last.innerHTML = escapeHtml(data.reply || "(no response)").replace(/\n/g,"<br>");
-        else addMsg("ai", data.reply || "(no response)");
-      }catch(err){
-        addMsg("ai", "Couldn’t reach the proxy. Double-check the URL (and see README). Error: " + err.message);
-      }
-    }
-
-    // simple supportive demo replies (no key, offline)
-    function demoSupportReply(userText){
-      const openers = [
-        "Thanks for sharing that. It sounds like a lot.",
-        "I hear you—those feelings are valid.",
-        "Appreciate you putting this into words."
-      ];
-      const tools = [
-        "If it helps, try labeling the feeling in one word (e.g., “anxious”, “frustrated”).",
-        "What’s one small step you could take in the next 24 hours?",
-        "On a scale of 1–10, how intense does this feel right now?"
-      ];
-      const closures = [
-        "I’m here if you want to unpack it more.",
-        "We can break this down together.",
-        "You’re not alone in this."
-      ];
-      function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
-      return `${pick(openers)}\n\n${pick(tools)}\n\n${pick(closures)}`;
-    }
-
-    function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
   </script>
 </body>
 </html>
+
